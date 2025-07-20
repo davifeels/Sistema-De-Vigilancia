@@ -1,7 +1,7 @@
 <table>
   <tr>
-    <td><img src="https://github.com/davifeels/Sistema-De-Vigilancia/assets/hehe.jped" width="300"/></td>
-    <td><img src="https://github.com/davifeels/Sistema-De-Vigilancia/assets/img.camera.vigilancia.jped" width="300"/></td>
+    <td><img src="https://github.com/davifeels/Sistema-De-Vigilancia/assets/hehe.JPD" width="300"/></td>
+    <td><img src="https://github.com/davifeels/Sistema-De-Vigilancia/assets/img.camera.vigilancia.JPD" width="300"/></td>
   </tr>
 </table>
 
