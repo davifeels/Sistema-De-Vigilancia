@@ -1,0 +1,13 @@
+# Arquivos de Cache do Python
+__pycache__/
+*.pyc
+
+# Modelos de IA (não devem ir para o GitHub)
+*.pt
+
+# Pasta de ambiente virtual (se você usar no futuro)
+venv/
+.venv/
+
+# Arquivos de IDE
+.vscode/

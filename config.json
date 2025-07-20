@@ -1,0 +1,24 @@
+{
+  "cameras": [
+    {
+      "id": "http://192.168.1.3:4747/video",
+      "name": "Câmera Celular",
+      "placeholder": "assets/no_signal.png"
+    },
+    {
+      "id": 0,
+      "name": "Webcam USB",
+      "placeholder": "assets/no_signal.png"
+    },
+    {
+      "id": null,
+      "name": "Slot Vazio 1",
+      "placeholder": "assets/no_signal.png"
+    },
+    {
+      "id": null,
+      "name": "Slot Vazio 2",
+      "placeholder": "assets/no_signal.png"
+    }
+  ]
+}
