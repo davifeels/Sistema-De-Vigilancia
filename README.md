@@ -1,11 +1,3 @@
-<table>
-  <tr>
-    <td><img src="https://github.com/davifeels/Sistema-De-Vigilancia/raw/main/assets/hehe.JPG" width="300"/></td>
-    <td><img src="https://github.com/davifeels/Sistema-De-Vigilancia/raw/main/assets/img.camera.vigilancia.JPG" width="300"/></td>
-  </tr>
-</table>
-
-
 # 🔥 Phoenix Vision – Sistema de Vigilância Inteligente
 
 Status: ✅ **Concluído**
@@ -22,7 +14,13 @@ Visualização em grade 2x2 com o modelo de IA identificando pontos-chave do cor
 - **Funcionalidades Avançadas da Interface:**  
 Demonstração do modo tela cheia, galeria de gravações automáticas e painel gráfico de configurações.
 
-💡 _Dica: Para adicionar imagens ou GIFs no README, arraste e solte os arquivos em uma nova Issue do GitHub e copie as URLs geradas._
+<table>
+  <tr>
+    <td><img src="https://github.com/davifeels/Sistema-De-Vigilancia/raw/main/assets/hehe.JPG" width="300"/></td>
+    <td><img src="https://github.com/davifeels/Sistema-De-Vigilancia/raw/main/assets/img.camera.vigilancia.JPG" width="300"/></td>
+  </tr>
+</table>
+
 
 ---
 
