@@ -1,9 +1,10 @@
 <table>
   <tr>
-    <td><img src="https://github.com/davifeels/Sistema-De-Vigilancia/assets/hehe.JPD" width="300"/></td>
-    <td><img src="https://github.com/davifeels/Sistema-De-Vigilancia/assets/img.camera.vigilancia.JPD" width="300"/></td>
+    <td><img src="https://github.com/davifeels/Sistema-De-Vigilancia/raw/main/assets/hehe.JPG" width="300"/></td>
+    <td><img src="https://github.com/davifeels/Sistema-De-Vigilancia/raw/main/assets/img.camera.vigilancia.JPG" width="300"/></td>
   </tr>
 </table>
+
 
 # 🔥 Phoenix Vision – Sistema de Vigilância Inteligente
 
