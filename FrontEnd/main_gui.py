@@ -12,8 +12,13 @@ from PyQt6.QtCore import QThread, pyqtSignal, Qt, QUrl
 from PyQt6.QtGui import QImage, QPixmap, QFont, QPainter, QAction, QIcon
 from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QVideoWidget
+
+# Importe os novos widgets
 from detector import Detector
 from gravador import Gravador
+from gallery_widget import GalleryWidget
+from login_dialog import LoginDialog
+from auth_manager import AuthManager
 
 # ====================================================================================
 # ESTILO QSS APRIMORADO (CSS)
@@ -111,8 +116,9 @@ QLineEdit {
 }
 """
 
-# ... (As classes CameraThread, Detector, e Gravador não precisam ser alteradas) ...
-# Para garantir, estou incluindo a CameraThread aqui. Detector e Gravador continuam nos seus arquivos.
+# ====================================================================================
+# THREAD DE PROCESSAMENTO DE CÂMERA
+# ====================================================================================
 class CameraThread(QThread):
     changePixmap = pyqtSignal(QImage)
     def __init__(self, camera_id, nome_camera):
@@ -281,8 +287,9 @@ class SettingsDialog(QDialog):
 # JANELA PRINCIPAL - O APLICATIVO EM SI
 # ====================================================================================
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, user_role="guest"): # Adiciona o papel do usuário
         super().__init__()
+        self.user_role = user_role
         self.setWindowTitle("Painel de Vigilância PRO MAX")
         self.setStyleSheet(QSS_STYLE)
 
@@ -303,31 +310,33 @@ class MainWindow(QMainWindow):
             json.dump(self.settings, f, indent=2)
 
     def init_ui(self):
-        # Limpa a interface antiga se estiver recarregando
         if hasattr(self, 'tab_widget'):
             self.tab_widget.deleteLater()
 
-        # Adiciona Menu
         menu_bar = self.menuBar()
         file_menu = menu_bar.addMenu("Arquivo")
         settings_action = QAction("Configurações", self)
+        # Habilita ou desabilita a ação de acordo com o papel do usuário
+        settings_action.setEnabled(self.user_role == "admin")
         settings_action.triggered.connect(self.open_settings)
         file_menu.addAction(settings_action)
 
-        # Adiciona Abas
         self.tab_widget = QTabWidget()
         self.setCentralWidget(self.tab_widget)
         
-        # Aba de Câmeras
         self.camera_panel = QWidget()
         self.grid_layout = QGridLayout(self.camera_panel)
         self.grid_layout.setSpacing(15)
         self.tab_widget.addTab(self.camera_panel, "Painel de Câmeras")
         
-        # Aba de Galeria
+        # Aba de Galeria de Gravações
         self.gallery_panel = GalleryWidget()
         self.tab_widget.addTab(self.gallery_panel, "Gravações")
 
+        # ABA DE GALERIA DE ROSTOS
+        self.face_gallery_panel = GalleryWidget(camera_id=0)
+        self.tab_widget.addTab(self.face_gallery_panel, "Galeria de Rostos")
+        
         self.camera_widgets = []
         positions = [(i, j) for i in range(2) for j in range(2)]
         
@@ -341,13 +350,11 @@ class MainWindow(QMainWindow):
 
     def toggle_fullscreen(self, widget_clicked):
         if self.fullscreen_widget is None:
-            # Entra em tela cheia
             self.fullscreen_widget = widget_clicked
             for widget in self.camera_widgets:
                 if widget != self.fullscreen_widget:
                     widget.setVisible(False)
         else:
-            # Sai da tela cheia
             for widget in self.camera_widgets:
                 widget.setVisible(True)
             self.fullscreen_widget = None
@@ -363,11 +370,27 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         for widget in self.camera_widgets:
             widget.stop_thread()
+        self.face_gallery_panel.stop_camera()
         super().closeEvent(event)
 
 # --- PONTO DE PARTIDA DO APLICATIVO ---
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    main_window = MainWindow()
-    main_window.showMaximized()
-    sys.exit(app.exec())
+    auth_manager = AuthManager()
+
+    login_dialog = LoginDialog()
+    if login_dialog.exec() == QDialog.Accepted:
+        username = login_dialog.username_input.text()
+        password = login_dialog.password_input.text()
+        user = auth_manager.authenticate(username, password)
+
+        if user:
+            QMessageBox.information(None, "Login Bem-sucedido", f"Bem-vindo, {user['username']}!")
+            main_window = MainWindow(user_role=user['role'])
+            main_window.showMaximized()
+            sys.exit(app.exec())
+        else:
+            QMessageBox.critical(None, "Erro de Login", "Usuário ou senha incorretos.")
+            sys.exit(app.exec())
+    else:
+        sys.exit(0)

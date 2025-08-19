@@ -1,0 +1,14 @@
+{
+  "users": [
+    {
+      "username": "admin",
+      "password_hash": "$2b$12$N7x/Xy/Z2X6y/Z2X6y/Z2X6y/Z2X6y/Z2X6y/Z2X6y/Z2X6y/Z2X6",
+      "role": "admin"
+    },
+    {
+      "username": "operador",
+      "password_hash": "$2b$12$N7x/Xy/Z2X6y/Z2X6y/Z2X6y/Z2X6y/Z2X6y/Z2X6y/Z2X6y/Z2X6",
+      "role": "operator"
+    }
+  ]
+}

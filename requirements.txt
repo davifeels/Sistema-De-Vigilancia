@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+peewee
+mysql-connector-python
+bcrypt
+face-recognition
+opencv-python
+ultralytics
+numpy
