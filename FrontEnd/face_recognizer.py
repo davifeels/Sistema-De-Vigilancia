@@ -15,6 +15,7 @@ class FaceRecognizer:
         print("[INFO] Carregando rostos conhecidos...")
         if not os.path.exists(self.known_faces_dir):
             print(f"AVISO: Pasta '{self.known_faces_dir}' não encontrada. O reconhecimento facial está desativado.")
+            os.makedirs(self.known_faces_dir)
             return
 
         for filename in os.listdir(self.known_faces_dir):

@@ -2,6 +2,7 @@ from peewee import *
 import datetime
 import os
 import mysql.connector
+from mysql.connector.errors import OperationalError # Importação corrigida
 
 # Configurações do banco de dados MySQL
 db = MySQLDatabase(
@@ -30,7 +31,7 @@ def initialize_db():
     try:
         db.connect()
         db.create_tables([Event])
-        print("Tabela 'events' criada com sucesso.")
+        print("Tabela 'events' verificada/criada com sucesso.")
     except OperationalError as e:
         print(f"ERRO: Falha ao conectar ou criar tabelas no MySQL. Verifique suas credenciais e a conexão. {e}")
     finally:

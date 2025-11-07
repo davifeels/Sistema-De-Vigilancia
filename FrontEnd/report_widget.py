@@ -1,6 +1,6 @@
 # report_widget.py
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QHeaderView
 from PyQt6.QtCore import Qt
 from db_manager import Event, db
 
@@ -12,7 +12,12 @@ class ReportWidget(QWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["Data", "Câmera", "Tipo de Evento", "Imagem", "Vídeo"])
-        self.table.horizontalHeader().setStretchLastSection(True)
+        
+        # Ajuste para esticar as colunas
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents) # Data
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents) # Câmera
+
         self.layout.addWidget(self.table)
 
         refresh_button = QPushButton("Atualizar Relatório")
@@ -24,7 +29,8 @@ class ReportWidget(QWidget):
     def populate_table(self):
         """Preenche a tabela com os eventos do banco de dados."""
         try:
-            db.connect()
+            if db.is_closed():
+                db.connect()
             events = Event.select().order_by(Event.timestamp.desc())
 
             self.table.setRowCount(len(events))

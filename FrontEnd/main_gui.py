@@ -1,4 +1,4 @@
-# main_gui.py (Versão SUÍTE COMPLETA - GUI Avançada)
+# main_gui.py (Versão SUÍTE COMPLETA - COM RECONHECIMENTO FACIAL)
 
 import sys
 import os
@@ -16,9 +16,20 @@ from PyQt6.QtMultimediaWidgets import QVideoWidget
 # Importe os novos widgets
 from detector import Detector
 from gravador import Gravador
-from gallery_widget import GalleryWidget
-from login_dialog import LoginDialog
-from auth_manager import AuthManager
+
+# --- MODIFICAÇÕES DE IMPORTAÇÃO ---
+# Importa a galeria de rostos (file 16) com um novo nome para evitar conflito
+from gallery_widget import GalleryWidget as FaceGalleryWidget
+# Removemos LoginDialog e AuthManager
+# from login_dialog import LoginDialog
+# from auth_manager import AuthManager
+
+# Novas importações para IA e DB
+from face_recognizer import FaceRecognizer
+from Logger import Logger
+from report_widget import ReportWidget
+# --- FIM DAS MODIFICAÇÕES ---
+
 
 # ====================================================================================
 # ESTILO QSS APRIMORADO (CSS)
@@ -75,17 +86,24 @@ CameraWidget {
     border-bottom-right-radius: 10px;
 }
 
-/* Galeria */
-QListWidget {
+/* Galeria e Relatórios */
+QListWidget, QTableWidget {
     background-color: #2D2D2D;
     border-radius: 5px;
     border: 1px solid #444;
     font-size: 14px;
+    alternate-background-color: #3E3E3E;
+}
+QHeaderView::section {
+    background-color: #007ACC;
+    color: white;
+    padding: 5px;
+    border: 1px solid #444;
 }
 QListWidget::item {
     padding: 8px;
 }
-QListWidget::item:selected {
+QListWidget::item:selected, QTableWidget::item:selected {
     background-color: #007ACC;
     color: white;
 }
@@ -117,56 +135,125 @@ QLineEdit {
 """
 
 # ====================================================================================
-# THREAD DE PROCESSAMENTO DE CÂMERA
+# THREAD DE PROCESSAMENTO DE CÂMERA (VERSÃO ATUALIZADA COM IA COMPLETA)
 # ====================================================================================
 class CameraThread(QThread):
     changePixmap = pyqtSignal(QImage)
+    
     def __init__(self, camera_id, nome_camera):
         super().__init__()
         self.camera_id = camera_id; self.nome_camera = nome_camera; self.running = True
+
     def run(self):
         try:
             captura = cv2.VideoCapture(self.camera_id)
             w, h = 640, 360
             if not captura.isOpened(): return
-            detector = Detector(); gravador = Gravador(largura=w, altura=h, prefixo_nome=f"{self.nome_camera}_")
+
+            # --- INICIALIZAÇÃO DOS MÓDULOS DE IA E LOG ---
+            detector = Detector()
+            gravador = Gravador(largura=w, altura=h, prefixo_nome=f"{self.nome_camera}_")
+            face_recognizer = FaceRecognizer()
+            logger = Logger()
+            
             frames, ultima_vez_detectado, persistencia = 0, 0, 10.0
-            ultimos_contornos, ultimas_poses = [], []
+            ultimos_contornos, ultimas_poses, ultimas_faces = [], [], []
+            last_alert_time = 0
+            # --- FIM DA INICIALIZAÇÃO ---
+
             while self.running:
                 ret, frame_original = captura.read()
                 if not ret or frame_original is None: continue
+                
                 frame = cv2.resize(frame_original, (w, h))
+                
+                # --- LÓGICA DE DETECÇÃO (FRAME SKIPPING) ---
                 if frames % 4 == 0:
-                    contornos = detector.detectar_movimento(frame); poses = []
-                    if contornos: poses = detector.detectar_poses(frame)
-                    if contornos or poses:
+                    contornos = detector.detectar_movimento(frame)
+                    poses = []
+                    faces = []
+                    
+                    if contornos:
+                        poses = detector.detectar_poses(frame)
+                    
+                    if poses or contornos:
+                        faces = face_recognizer.recognize(frame)
+                    
+                    if contornos or poses or faces:
                         ultima_vez_detectado = time.time()
-                        ultimos_contornos = contornos; ultimas_poses = poses
+                        ultimos_contornos = contornos
+                        ultimas_poses = poses
+                        ultimas_faces = faces
+
                 frames += 1
+                
                 no_periodo_de_persistencia = time.time() - ultima_vez_detectado < persistencia
+                
+                # --- LÓGICA DE DESENHO E ALERTA ---
                 if no_periodo_de_persistencia:
-                    status, cor = "ATIVIDADE DETECTADA", (0, 0, 255)
+                    
+                    # 1. Desenha Contornos de Movimento
                     for contorno in ultimos_contornos:
                         (x, y, w_c, h_c) = cv2.boundingRect(contorno)
                         cv2.rectangle(frame, (x, y), (x + w_c, y + h_c), (0, 255, 0), 2)
-                        cv2.putText(frame, "Movimento", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                    
+                    # 2. Desenha Poses
                     for pose in ultimas_poses:
                         px = [p[0] for p in pose if p[0]>0]; py = [p[1] for p in pose if p[1]>0]
                         if px and py:
                             x_min, x_max = int(min(px)), int(max(px)); y_min, y_max = int(min(py)), int(max(py))
                             cv2.rectangle(frame, (x_min-10, y_min-10), (x_max+10, y_max+10), (255,0,0), 2)
-                    gravador.iniciar_gravacao(); gravador.gravar_frame(frame)
+                    
+                    # 3. Desenha Reconhecimento Facial
+                    for face in ultimas_faces:
+                        top, right, bottom, left = face['box']
+                        name = face['name']
+                        cor_borda = (255, 255, 0) if name != "Desconhecido" else (0, 0, 255) # Amarelo/Vermelho
+                        cv2.rectangle(frame, (left, top), (right, bottom), cor_borda, 2)
+                        y_text = top - 15 if top - 15 > 15 else top + 15
+                        cv2.putText(frame, name, (left, y_text), cv2.FONT_HERSHEY_SIMPLEX, 0.75, cor_borda, 2)
+
+                    # 4. Define o Status, Grava e Loga
+                    faces_desconhecidas = [f for f in ultimas_faces if f['name'] == 'Desconhecido']
+                    
+                    if faces_desconhecidas or (ultimos_contornos and not ultimas_faces and not ultimas_poses):
+                        status, cor = "ALERTA: ATIVIDADE", (0, 0, 255)
+                        gravador.iniciar_gravacao()
+                        gravador.gravar_frame(frame)
+                        
+                        if time.time() - last_alert_time > 30: # Evita spam de logs
+                            video_path = gravador.nome_arquivo if gravador.gravando else None
+                            logger.log_event(
+                                event_type="Atividade Suspeita",
+                                camera_name=self.nome_camera,
+                                video_path=video_path
+                            )
+                            last_alert_time = time.time()
+                    
+                    elif ultimas_faces or ultimas_poses:
+                        status, cor = "ATIVIDADE DETECTADA", (0, 255, 255) # Ciano
+                        gravador.parar_gravacao()
+                    
+                    else:
+                        status, cor = "ATIVIDADE", (0, 0, 255)
+                        gravador.iniciar_gravacao()
+                        gravador.gravar_frame(frame)
+
                 else:
                     status, cor = "MONITORANDO", (0, 255, 0)
                     gravador.parar_gravacao()
+                
+                # --- ATUALIZA A INTERFACE ---
                 cv2.putText(frame, status, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, cor, 2)
                 rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 h_i, w_i, ch = rgb_image.shape; bytes_per_line = ch * w_i
                 qt_img = QImage(rgb_image.data, w_i, h_i, bytes_per_line, QImage.Format.Format_RGB888)
                 self.changePixmap.emit(qt_img.scaled(640, 360, Qt.AspectRatioMode.KeepAspectRatio))
+                
         finally:
             if 'captura' in locals() and captura.isOpened(): captura.release()
             if 'gravador' in locals(): gravador.finalizar()
+
     def stop(self): self.running = False; self.wait()
 
 # ====================================================================================
@@ -202,9 +289,10 @@ class CameraWidget(QWidget):
         if hasattr(self, 'thread'): self.thread.stop()
 
 # ====================================================================================
-# ABA DA GALERIA DE GRAVAÇÕES
+# ABA DA GALERIA DE GRAVAÇÕES (VÍDEOS)
+# (Esta classe estava definida dentro do main_gui.py original)
 # ====================================================================================
-class GalleryWidget(QWidget):
+class VideoGalleryWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.layout = QGridLayout(self)
@@ -287,10 +375,11 @@ class SettingsDialog(QDialog):
 # JANELA PRINCIPAL - O APLICATIVO EM SI
 # ====================================================================================
 class MainWindow(QMainWindow):
-    def __init__(self, user_role="guest"): # Adiciona o papel do usuário
+    # Remove 'user_role' do init
+    def __init__(self):
         super().__init__()
-        self.user_role = user_role
-        self.setWindowTitle("Painel de Vigilância PRO MAX")
+        # self.user_role = user_role # Removido
+        self.setWindowTitle("Phoenix Vision - Painel de Vigilância")
         self.setStyleSheet(QSS_STYLE)
 
         self.load_settings()
@@ -301,7 +390,6 @@ class MainWindow(QMainWindow):
             with open("config.json", "r") as f:
                 self.settings = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
-            # Cria um config padrão se não existir ou for inválido
             self.settings = { "cameras": [ {"id": None, "name": f"Câmera {i+1}", "placeholder": "assets/no_signal.png"} for i in range(4) ] }
             self.save_settings()
     
@@ -313,13 +401,15 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'tab_widget'):
             self.tab_widget.deleteLater()
 
+        # --- MENU DE CONFIGURAÇÕES (REMOVIDO LOGIN) ---
         menu_bar = self.menuBar()
         file_menu = menu_bar.addMenu("Arquivo")
         settings_action = QAction("Configurações", self)
-        # Habilita ou desabilita a ação de acordo com o papel do usuário
-        settings_action.setEnabled(self.user_role == "admin")
+        # Habilita as configurações por padrão
+        settings_action.setEnabled(True) 
         settings_action.triggered.connect(self.open_settings)
         file_menu.addAction(settings_action)
+        # --- FIM DA MODIFICAÇÃO DO MENU ---
 
         self.tab_widget = QTabWidget()
         self.setCentralWidget(self.tab_widget)
@@ -329,13 +419,22 @@ class MainWindow(QMainWindow):
         self.grid_layout.setSpacing(15)
         self.tab_widget.addTab(self.camera_panel, "Painel de Câmeras")
         
-        # Aba de Galeria de Gravações
-        self.gallery_panel = GalleryWidget()
+        # --- ABAS ATUALIZADAS ---
+        
+        # Aba de Galeria de Gravações (Vídeos)
+        # Usamos a classe interna 'VideoGalleryWidget'
+        self.gallery_panel = VideoGalleryWidget()
         self.tab_widget.addTab(self.gallery_panel, "Gravações")
 
         # ABA DE GALERIA DE ROSTOS
-        self.face_gallery_panel = GalleryWidget(camera_id=0)
+        # Usamos a classe importada 'FaceGalleryWidget'
+        self.face_gallery_panel = FaceGalleryWidget(camera_id=0) #
         self.tab_widget.addTab(self.face_gallery_panel, "Galeria de Rostos")
+        
+        # NOVA ABA DE RELATÓRIO
+        self.report_panel = ReportWidget() #
+        self.tab_widget.addTab(self.report_panel, "Relatório de Eventos")
+        # --- FIM DAS ABAS ---
         
         self.camera_widgets = []
         positions = [(i, j) for i in range(2) for j in range(2)]
@@ -370,27 +469,14 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         for widget in self.camera_widgets:
             widget.stop_thread()
-        self.face_gallery_panel.stop_camera()
+        self.face_gallery_panel.stop_camera() #
         super().closeEvent(event)
 
-# --- PONTO DE PARTIDA DO APLICATIVO ---
+# --- PONTO DE PARTIDA DO APLICATIVO (SEM LOGIN) ---
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    auth_manager = AuthManager()
-
-    login_dialog = LoginDialog()
-    if login_dialog.exec() == QDialog.Accepted:
-        username = login_dialog.username_input.text()
-        password = login_dialog.password_input.text()
-        user = auth_manager.authenticate(username, password)
-
-        if user:
-            QMessageBox.information(None, "Login Bem-sucedido", f"Bem-vindo, {user['username']}!")
-            main_window = MainWindow(user_role=user['role'])
-            main_window.showMaximized()
-            sys.exit(app.exec())
-        else:
-            QMessageBox.critical(None, "Erro de Login", "Usuário ou senha incorretos.")
-            sys.exit(app.exec())
-    else:
-        sys.exit(0)
+    
+    # Remove toda a lógica de login
+    main_window = MainWindow() # Instancia direto
+    main_window.showMaximized()
+    sys.exit(app.exec())

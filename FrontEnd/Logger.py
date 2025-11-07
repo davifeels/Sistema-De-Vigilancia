@@ -6,7 +6,10 @@ class Logger:
     def log_event(self, event_type, camera_name, image_path=None, video_path=None):
         """Registra um evento no banco de dados."""
         try:
-            db.connect()
+            # Garante que o banco esteja conectado (Peewee gerencia pool)
+            if db.is_closed():
+                db.connect()
+                
             Event.create(
                 event_type=event_type,
                 camera_name=camera_name,

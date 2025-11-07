@@ -20,6 +20,7 @@ class GalleryWidget(QWidget):
         self.capture = None
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
+        self.current_frame = None # Armazena o frame atual
 
         self.setup_ui()
         self.populate_gallery()
@@ -48,6 +49,7 @@ class GalleryWidget(QWidget):
 
         # Layout da Galeria
         gallery_layout = QVBoxLayout()
+        gallery_layout.addWidget(QLabel("Rostos Cadastrados:"))
         self.face_list = QListWidget()
         gallery_layout.addWidget(self.face_list)
         
@@ -67,7 +69,8 @@ class GalleryWidget(QWidget):
     def update_frame(self):
         ret, frame = self.capture.read()
         if ret:
-            frame = cv2.flip(frame, 1)
+            self.current_frame = frame.copy() # Salva o frame BGR
+            frame = cv2.flip(self.current_frame, 1)
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             h, w, ch = frame_rgb.shape
             bytes_per_line = ch * w
@@ -80,20 +83,23 @@ class GalleryWidget(QWidget):
             QMessageBox.warning(self, "Nome Inválido", "Por favor, digite um nome para o rosto.")
             return
 
-        ret, frame = self.capture.read()
-        if not ret:
+        if self.current_frame is None:
             QMessageBox.critical(self, "Erro de Câmera", "Não foi possível capturar o frame.")
             return
 
         # Tenta encontrar um rosto no frame
-        face_locations = face_recognition.face_locations(frame)
+        # Usa o frame original (não flipado)
+        face_locations = face_recognition.face_locations(self.current_frame)
         if len(face_locations) == 0:
             QMessageBox.warning(self, "Nenhum Rosto Detectado", "Não foi possível encontrar um rosto. Tente novamente.")
+            return
+        if len(face_locations) > 1:
+            QMessageBox.warning(self, "Múltiplos Rostos", "Mais de um rosto detectado. Posicione apenas um rosto na câmera.")
             return
 
         # Pega a localização do primeiro rosto
         top, right, bottom, left = face_locations[0]
-        face_image = frame[top:bottom, left:right]
+        face_image = self.current_frame[top:bottom, left:right]
 
         filename = os.path.join(self.face_recognizer.known_faces_dir, f"{name}.png")
         cv2.imwrite(filename, face_image)
@@ -105,6 +111,7 @@ class GalleryWidget(QWidget):
 
     def populate_gallery(self):
         self.face_list.clear()
+        self.face_recognizer.load_known_faces() # Garante que a lista está atualizada
         for name in self.face_recognizer.known_face_names:
             self.face_list.addItem(name)
 
@@ -115,12 +122,27 @@ class GalleryWidget(QWidget):
             return
             
         name = selected_item.text()
-        file_to_delete = os.path.join(self.face_recognizer.known_faces_dir, f"{name}.png")
-        if os.path.exists(file_to_delete):
-            os.remove(file_to_delete)
-            QMessageBox.information(self, "Sucesso", f"Rosto de {name} excluído com sucesso.")
-            self.face_recognizer.load_known_faces()
-            self.populate_gallery()
+        # Pergunta de confirmação
+        reply = QMessageBox.question(self, "Confirmar Exclusão",
+                                     f"Tem certeza que deseja excluir o rosto de {name}?",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                     QMessageBox.StandardButton.No)
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            file_to_delete = os.path.join(self.face_recognizer.known_faces_dir, f"{name}.png")
+            
+            # Tenta encontrar o jpg ou jpeg também
+            if not os.path.exists(file_to_delete):
+                file_to_delete = os.path.join(self.face_recognizer.known_faces_dir, f"{name}.jpg")
+            if not os.path.exists(file_to_delete):
+                 file_to_delete = os.path.join(self.face_recognizer.known_faces_dir, f"{name}.jpeg")
+            
+            if os.path.exists(file_to_delete):
+                os.remove(file_to_delete)
+                QMessageBox.information(self, "Sucesso", f"Rosto de {name} excluído com sucesso.")
+                self.populate_gallery() # Atualiza a lista
+            else:
+                QMessageBox.warning(self, "Erro", f"Não foi possível encontrar o arquivo de imagem para {name}.")
 
     def stop_camera(self):
         if self.timer.isActive():
